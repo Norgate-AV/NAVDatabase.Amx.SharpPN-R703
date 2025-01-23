@@ -1,5 +1,5 @@
 MODULE_NAME='mSharpPN-R703'     (
-                                    dev vdvControl,
+                                    dev vdvObject,
                                     dev dvPort
                                 )
 
@@ -170,7 +170,7 @@ DEFINE_MUTUALLY_EXCLUSIVE
 (* EXAMPLE: DEFINE_FUNCTION <RETURN_TYPE> <NAME> (<PARAMETERS>) *)
 (* EXAMPLE: DEFINE_CALL '<NAME>' (<PARAMETERS>) *)
 define_function SendStringRaw(char cParam[]) {
-     NAVLog(NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_STRING_TO, dvPort, cParam))
+     NAVErrorLog(NAV_LOG_LEVEL_DEBUG, NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_STRING_TO, dvPort, cParam))
     send_string dvPort,"cParam"
 }
 
@@ -216,7 +216,7 @@ define_function Process() {
     while (length_array(cRxBuffer) && NAVContains(cRxBuffer,"NAV_LF")) {
     cTemp = remove_string(cRxBuffer,"NAV_LF",1)
     if (length_array(cTemp)) {
-         NAVLog(NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_PARSING_STRING_FROM, dvPort, cTemp))
+         NAVErrorLog(NAV_LOG_LEVEL_DEBUG, NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_PARSING_STRING_FROM, dvPort, cTemp))
         cTemp = NAVStripCharsFromRight(cTemp, 2)    //Removes CRLF
         select {
         active (NAVContains(cTemp,'ERR') || NAVContains(cTemp,"$FF,$FF,$FF")): {
@@ -268,9 +268,9 @@ define_function Process() {
                 }
             }
             case GET_VOLUME: {
-                if (atoi(cTemp) <> uDisplay.Volume.Level.Actual) {
+                if (atoi(cTemp) != uDisplay.Volume.Level.Actual) {
                 uDisplay.Volume.Level.Actual = atoi(cTemp)
-                send_level vdvControl, VOL_LVL, NAVScaleValue(uDisplay.Volume.Level.Actual, 255, (MAX_VOLUME - MIN_VOLUME), 0)
+                send_level vdvObject, VOL_LVL, NAVScaleValue(uDisplay.Volume.Level.Actual, 255, (MAX_VOLUME - MIN_VOLUME), 0)
                 }
                 iPollSequence = GET_POWER
             }
@@ -298,7 +298,7 @@ define_function Drive() {
         if (iRequiredMute && (iRequiredMute == uDisplay.Volume.Mute.Actual)) { iRequiredMute = 0; return }
         if (iRequiredVolume && (iRequiredVolume == (uDisplay.Volume.Level.Actual + 1))) { iRequiredVolume = 0; return }
 
-        if (iRequiredPower && (iRequiredPower <> uDisplay.PowerState.Actual) && [vdvControl,DEVICE_COMMUNICATING]) {
+        if (iRequiredPower && (iRequiredPower != uDisplay.PowerState.Actual) && [vdvObject,DEVICE_COMMUNICATING]) {
         iCommandBusy = true
         SetPower(iRequiredPower)
         iCommandLockOut = true
@@ -307,7 +307,7 @@ define_function Drive() {
         return
         }
 
-        if (iRequiredInput && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && (iRequiredInput <> uDisplay.Input.Actual) && [vdvControl,DEVICE_COMMUNICATING]) {
+        if (iRequiredInput && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && (iRequiredInput != uDisplay.Input.Actual) && [vdvObject,DEVICE_COMMUNICATING]) {
         iCommandBusy = true
         SetInput(iRequiredInput)
         iCommandLockOut = true
@@ -316,7 +316,7 @@ define_function Drive() {
         return
         }
 
-        if (iRequiredMute && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && (iRequiredMute <> uDisplay.Volume.Mute.Actual) && [vdvControl,DEVICE_COMMUNICATING]) {
+        if (iRequiredMute && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && (iRequiredMute != uDisplay.Volume.Mute.Actual) && [vdvObject,DEVICE_COMMUNICATING]) {
         iCommandBusy = true
         SetMute(iRequiredMute);
         iCommandLockOut = true
@@ -325,7 +325,7 @@ define_function Drive() {
         return
         }
 
-        if ([vdvControl,VOL_UP]) {
+        if ([vdvObject,VOL_UP]) {
         if (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) {
             if (uDisplay.Volume.Level.Actual < MAX_VOLUME) {
             iRequiredVolume = (uDisplay.Volume.Level.Actual + 1) + 1
@@ -333,7 +333,7 @@ define_function Drive() {
         }
         }
 
-        if ([vdvControl,VOL_DN]) {
+        if ([vdvObject,VOL_DN]) {
         if (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) {
             if (uDisplay.Volume.Level.Actual > MIN_VOLUME) {
             iRequiredVolume = (uDisplay.Volume.Level.Actual - 1) + 1
@@ -341,7 +341,7 @@ define_function Drive() {
         }
         }
 
-        if (iRequiredVolume && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && [vdvControl,DEVICE_COMMUNICATING]) {
+        if (iRequiredVolume && (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) && [vdvObject,DEVICE_COMMUNICATING]) {
         iCommandBusy = true
         SetVolume(iRequiredVolume - 1);
         iPollSequence = GET_VOLUME;
@@ -373,26 +373,26 @@ rebuild_event()
 DEFINE_EVENT
 data_event[dvPort] {
     online: {
-    if (iModuleEnabled && data.device.number <> 0) {
+    if (iModuleEnabled && data.device.number != 0) {
         send_command data.device,"'SET BAUD 38400,N,8,1 485 DISABLE'"
         send_command data.device,"'B9MOFF'"
         send_command data.device,"'CHARD-0'"
         send_command data.device,"'CHARDM-0'"
         send_command data.device,"'HSOFF'"
-        timeline_create(TL_DRIVE,ltDrive,length_array(ltDrive),timeline_absolute,timeline_repeat)
+        NAVTimelineStart(TL_DRIVE,ltDrive,timeline_absolute,timeline_repeat)
     }
 
     if (iModuleEnabled && data.device.number == 0) {
         iIPConnected = true
-        timeline_create(TL_DRIVE,ltDrive,length_array(ltDrive),timeline_absolute,timeline_repeat)
+        NAVTimelineStart(TL_DRIVE,ltDrive,timeline_absolute,timeline_repeat)
     }
     }
     string: {
     if (iModuleEnabled) {
         iCommunicating = true
-        [vdvControl,DATA_INITIALIZED] = true
+        [vdvObject,DATA_INITIALIZED] = true
         TimeOut()
-         NAVLog(NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_STRING_FROM, dvPort, data.text))
+         NAVErrorLog(NAV_LOG_LEVEL_DEBUG, NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_STRING_FROM, dvPort, data.text))
         if (!iSemaphore) { Process() }
     }
     }
@@ -411,12 +411,12 @@ data_event[dvPort] {
     }
 }
 
-data_event[vdvControl] {
+data_event[vdvObject] {
     command: {
     stack_var char cCmdHeader[NAV_MAX_CHARS]
     stack_var char cCmdParam[3][NAV_MAX_CHARS]
     if (iModuleEnabled) {
-        NAVLog(NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_COMMAND_FROM, data.device, data.text))
+        NAVErrorLog(NAV_LOG_LEVEL_DEBUG, NAVFormatStandardLogMessage(NAV_STANDARD_LOG_MESSAGE_TYPE_COMMAND_FROM, data.device, data.text))
         cCmdHeader = DuetParseCmdHeader(data.text)
         cCmdParam[1] = DuetParseCmdParam(data.text)
         cCmdParam[2] = DuetParseCmdParam(data.text)
@@ -426,11 +426,11 @@ data_event[vdvControl] {
             switch (cCmdParam[1]) {
             case 'IP_ADDRESS': {
                 cIPAddress = cCmdParam[2]
-                //timeline_create(TL_IP_CHECK,ltIPCheck,length_array(ltIPCheck),timeline_absolute,timeline_repeat)
+                //NAVTimelineStart(TL_IP_CHECK,ltIPCheck,timeline_absolute,timeline_repeat)
             }
             case 'TCP_PORT': {
                 iTCPPort = atoi(cCmdParam[2])
-                timeline_create(TL_IP_CHECK,ltIPCheck,length_array(ltIPCheck),timeline_absolute,timeline_repeat)
+                NAVTimelineStart(TL_IP_CHECK,ltIPCheck,timeline_absolute,timeline_repeat)
             }
             }
         }
@@ -513,7 +513,7 @@ data_event[vdvControl] {
     }
 }
 
-channel_event[vdvControl,0] {
+channel_event[vdvObject,0] {
     on: {
     if (iModuleEnabled) {
         switch (channel.channel) {
@@ -532,7 +532,7 @@ channel_event[vdvControl,0] {
         }
         case PWR_ON: { iRequiredPower = REQUIRED_POWER_ON; Drive() }
         case PWR_OFF: { iRequiredPower = REQUIRED_POWER_OFF; iRequiredInput = 0; Drive() }
-        //case PIC_MUTE: { SetShutter(![vdvControl,PIC_MUTE_FB]) }
+        //case PIC_MUTE: { SetShutter(![vdvObject,PIC_MUTE_FB]) }
         case VOL_MUTE: {
             if (uDisplay.PowerState.Actual == ACTUAL_POWER_ON) {
             if (iRequiredMute) {
@@ -559,11 +559,11 @@ timeline_event[TL_IP_CHECK] { MaintainIPConnection() }
 
 timeline_event[TL_NAV_FEEDBACK] {
     if (iModuleEnabled) {
-    [vdvControl,DEVICE_COMMUNICATING]    = (iCommunicating)
-    [vdvControl,VOL_MUTE_FB] = (uDisplay.Volume.Mute.Actual == ACTUAL_MUTE_ON)
-    [vdvControl,POWER_FB] = (uDisplay.PowerState.Actual == ACTUAL_POWER_ON)
+    [vdvObject,DEVICE_COMMUNICATING]    = (iCommunicating)
+    [vdvObject,VOL_MUTE_FB] = (uDisplay.Volume.Mute.Actual == ACTUAL_MUTE_ON)
+    [vdvObject,POWER_FB] = (uDisplay.PowerState.Actual == ACTUAL_POWER_ON)
     //if (iIPConnected) {
-        //NAVLog("'Sharp LCD IP Connected'")
+        //NAVErrorLog(NAV_LOG_LEVEL_DEBUG, "'Sharp LCD IP Connected'")
     //}
     }
 }
